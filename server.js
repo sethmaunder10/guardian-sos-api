@@ -3,6 +3,7 @@ const cors = require("cors");
 const { v4: uuidv4 } = require("uuid");
 const path = require("path");
 const crypto = require("crypto");
+const { broadcastSOSMessage } = require("./smsService");
 
 const app = express();
 app.use(cors());
@@ -19,6 +20,9 @@ const tokenToSosId = new Map();   // shareToken -> sosId
 // Live link expiry (e.g. 6 hours)
 const LIVE_LINK_TTL_MS = 1000 * 60 * 60 * 6;
 
+// Public base URL for live links
+const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || "https://guardian-sos-api.onrender.com";
+
 // Generate a random share token (shorter than UUID)
 function generateShareToken() {
   return crypto.randomBytes(16).toString("hex"); // 32-char hex
@@ -29,8 +33,16 @@ function generateShareToken() {
 // ===========================
 
 // Start SOS session
-app.post("/api/sos/start", (req, res) => {
-  const { displayName, latitude, longitude, startedAt } = req.body || {};
+// Expects body:
+// {
+//   displayName: string,
+//   latitude?: number,
+//   longitude?: number,
+//   startedAt: string (ISO),
+//   contacts?: [{ name?: string, phone: string }]
+// }
+app.post("/api/sos/start", async (req, res) => {
+  const { displayName, latitude, longitude, startedAt, contacts } = req.body || {};
 
   if (!displayName || !startedAt) {
     return res
@@ -48,6 +60,21 @@ app.post("/api/sos/start", (req, res) => {
       ? { latitude, longitude, timestamp }
       : null;
 
+  // Normalize contacts into { name?, phone }
+  const normalizedContacts = Array.isArray(contacts)
+    ? contacts
+        .map((c) => {
+          if (!c) return null;
+          const phone = typeof c.phone === "string" ? c.phone.trim() : "";
+          if (!phone) return null;
+          return {
+            name: typeof c.name === "string" ? c.name.trim() : null,
+            phone
+          };
+        })
+        .filter(Boolean)
+    : [];
+
   const session = {
     sosId,
     displayName,
@@ -58,15 +85,46 @@ app.post("/api/sos/start", (req, res) => {
     endedAt: null,
     endReason: null,
     shareToken,
-    expiresAt
+    expiresAt,
+    contacts: normalizedContacts
   };
 
   sessions.set(sosId, session);
   tokenToSosId.set(shareToken, sosId);
 
-  console.log(`🆕 SOS started: ${sosId} (${displayName}) token=${shareToken}`);
+  console.log(
+    `🆕 SOS started: ${sosId} (${displayName}) token=${shareToken} contacts=${normalizedContacts.length}`
+  );
 
-  // Important: we now return BOTH sosId and shareToken
+  // Build live link
+  const liveURL = `${PUBLIC_BASE_URL}/live/${shareToken}`;
+
+  // Build initial SOS SMS body
+  let coordinateText = "Location: Unknown (location permission not granted).";
+  if (location) {
+    coordinateText = `Location: https://maps.apple.com/?ll=${location.latitude},${location.longitude}`;
+  }
+
+  let smsBody = `🚨 SOS from ${displayName}.\nI need help immediately.\n\n${coordinateText}\n\n`;
+  smsBody += `Live tracking link (updates in real time):\n${liveURL}`;
+
+  // Extract phone numbers for broadcast
+  const recipientPhones = normalizedContacts.map((c) => c.phone);
+
+  // Fire-and-forget Twilio send (don't block response if it fails)
+  if (recipientPhones.length > 0) {
+    broadcastSOSMessage(recipientPhones, smsBody)
+      .then(() => {
+        console.log(`✅ Initial SOS SMS sent to ${recipientPhones.length} contacts.`);
+      })
+      .catch((err) => {
+        console.error("❌ Failed broadcasting initial SOS SMS:", err?.message || err);
+      });
+  } else {
+    console.warn("⚠️ No contacts provided for SOS – no SMS sent.");
+  }
+
+  // Important: we now return BOTH sosId and shareToken (for the app)
   return res.json({ sosId, shareToken });
 });
 
@@ -138,7 +196,7 @@ app.get("/api/live/token/:token", (req, res) => {
   }
 
   // Don't leak the shareToken itself back out
-  const { shareToken, ...publicSession } = session;
+  const { shareToken, contacts, ...publicSession } = session;
   res.json(publicSession);
 });
 
@@ -156,7 +214,7 @@ app.get("/live/:token", (req, res) => {
 // ===========================
 
 app.get("/", (req, res) => {
-  res.send("GuardianSOS API running (secure links)");
+  res.send("GuardianSOS API running (secure links + Twilio SMS)");
 });
 
 // ===========================
