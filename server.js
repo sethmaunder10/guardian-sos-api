@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const { v4: uuidv4 } = require("uuid");
 const path = require("path");
+const crypto = require("crypto");
 
 const app = express();
 app.use(cors());
@@ -10,157 +11,158 @@ app.use(express.json());
 // Serve static files from /public
 app.use(express.static("public"));
 
-// In-memory store for SOS sessions
-// NOTE: This resets when the server restarts (fine for MVP).
-const sessions = new Map();
+// In-memory session store
+// (resets on deployment — fine for MVP)
+const sessions = new Map();       // sosId -> session
+const tokenToSosId = new Map();   // shareToken -> sosId
+
+// Live link expiry (e.g. 6 hours)
+const LIVE_LINK_TTL_MS = 1000 * 60 * 60 * 6;
+
+// Generate a random share token (shorter than UUID)
+function generateShareToken() {
+  return crypto.randomBytes(16).toString("hex"); // 32-char hex
+}
 
 // ===========================
-//   SOS API ROUTES
+//        SOS ROUTES
 // ===========================
 
-/**
- * POST /api/sos/start
- * Body: { displayName, latitude?, longitude?, startedAt }
- * Returns: { sosId }
- */
+// Start SOS session
 app.post("/api/sos/start", (req, res) => {
   const { displayName, latitude, longitude, startedAt } = req.body || {};
 
   if (!displayName || !startedAt) {
     return res
       .status(400)
-      .json({ error: "displayName and startedAt are required" });
+      .json({ error: "displayName and startedAt required" });
   }
 
   const sosId = uuidv4();
-  const now = startedAt ? new Date(startedAt) : new Date();
+  const shareToken = generateShareToken();
+  const timestamp = new Date(startedAt).toISOString();
+  const expiresAt = new Date(Date.now() + LIVE_LINK_TTL_MS).toISOString();
 
   const location =
     latitude != null && longitude != null
-      ? {
-          latitude,
-          longitude,
-          timestamp: now.toISOString()
-        }
+      ? { latitude, longitude, timestamp }
       : null;
 
-  sessions.set(sosId, {
+  const session = {
     sosId,
     displayName,
-    startedAt: now.toISOString(),
     status: "active",
+    startedAt: timestamp,
     lastLocation: location,
     locationHistory: location ? [location] : [],
+    endedAt: null,
     endReason: null,
-    endedAt: null
-  });
+    shareToken,
+    expiresAt
+  };
 
-  console.log(`🆕 SOS started: ${sosId} (${displayName})`);
+  sessions.set(sosId, session);
+  tokenToSosId.set(shareToken, sosId);
 
-  return res.json({ sosId });
+  console.log(`🆕 SOS started: ${sosId} (${displayName}) token=${shareToken}`);
+
+  // Important: we now return BOTH sosId and shareToken
+  return res.json({ sosId, shareToken });
 });
 
-/**
- * POST /api/sos/update
- * Body: { sosId, latitude, longitude, updatedAt }
- */
+// Update location
 app.post("/api/sos/update", (req, res) => {
   const { sosId, latitude, longitude, updatedAt } = req.body || {};
 
-  if (!sosId) {
-    return res.status(400).json({ error: "sosId is required" });
-  }
+  if (!sosId) return res.status(400).json({ error: "sosId required" });
 
   const session = sessions.get(sosId);
-  if (!session) {
-    return res.status(404).json({ error: "SOS session not found" });
-  }
+  if (!session) return res.status(404).json({ error: "SOS not found" });
 
   const timestamp = updatedAt
     ? new Date(updatedAt).toISOString()
     : new Date().toISOString();
 
-  const location = {
-    latitude,
-    longitude,
-    timestamp
-  };
+  const location = { latitude, longitude, timestamp };
 
   session.lastLocation = location;
   session.locationHistory.push(location);
 
-  console.log(`📍 SOS update: ${sosId} -> ${latitude}, ${longitude}`);
+  console.log(`📍 Update: ${sosId} -> ${latitude}, ${longitude}`);
 
   return res.json({ success: true });
 });
 
-/**
- * POST /api/sos/end
- * Body: { sosId, endedAt, reason }
- */
+// End SOS session
 app.post("/api/sos/end", (req, res) => {
   const { sosId, endedAt, reason } = req.body || {};
 
-  if (!sosId) {
-    return res.status(400).json({ error: "sosId is required" });
-  }
+  if (!sosId) return res.status(400).json({ error: "sosId required" });
 
   const session = sessions.get(sosId);
-  if (!session) {
-    return res.status(404).json({ error: "SOS session not found" });
-  }
+  if (!session) return res.status(404).json({ error: "SOS not found" });
 
   session.status = "ended";
-  session.endedAt = (endedAt ? new Date(endedAt) : new Date()).toISOString();
   session.endReason = reason || "unknown";
+  session.endedAt = endedAt
+    ? new Date(endedAt).toISOString()
+    : new Date().toISOString();
 
-  console.log(
-    `✅ SOS ended: ${sosId} (reason: ${session.endReason})`
-  );
+  console.log(`✅ SOS ended: ${sosId} (reason: ${session.endReason})`);
 
   return res.json({ success: true });
 });
 
 // ===========================
-//   LIVE JSON ENDPOINT
+//      LIVE JSON API (TOKEN)
 // ===========================
 
-/**
- * GET /api/live/:sosId
- * Returns current snapshot of an SOS session
- */
-app.get("/api/live/:sosId", (req, res) => {
-  const sosId = req.params.sosId;
-  const session = sessions.get(sosId);
+app.get("/api/live/token/:token", (req, res) => {
+  const token = req.params.token;
+  const sosId = tokenToSosId.get(token);
 
-  if (!session) {
-    return res.status(404).json({ error: "SOS session not found" });
+  if (!sosId) {
+    return res.status(404).json({ error: "Live link not found" });
   }
 
-  return res.json(session);
+  const session = sessions.get(sosId);
+  if (!session) {
+    return res.status(404).json({ error: "SOS not found" });
+  }
+
+  const now = Date.now();
+  const expiry = session.expiresAt ? Date.parse(session.expiresAt) : null;
+
+  if (expiry && now > expiry) {
+    return res.status(410).json({ error: "Live link expired" });
+  }
+
+  // Don't leak the shareToken itself back out
+  const { shareToken, ...publicSession } = session;
+  res.json(publicSession);
 });
 
 // ===========================
-//   LIVE DASHBOARD PAGE
+//      LIVE DASHBOARD PAGE
 // ===========================
 
-/**
- * GET /live/:sosId
- * Serves the dashboard HTML (which then calls /api/live/:sosId)
- */
-app.get("/live/:sosId", (req, res) => {
-  const filePath = path.join(__dirname, "public", "live.html");
-  res.sendFile(filePath);
+app.get("/live/:token", (req, res) => {
+  // We don't validate here; the JS inside will hit /api/live/token/:token
+  res.sendFile(path.join(__dirname, "public", "live.html"));
 });
 
-// Root route
+// ===========================
+//         ROOT
+// ===========================
+
 app.get("/", (req, res) => {
-  res.send("GuardianSOS API running");
+  res.send("GuardianSOS API running (secure links)");
 });
 
 // ===========================
-//   START SERVER
+//     START SERVER
 // ===========================
+
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🚀 GuardianSOS API running on port ${PORT}`);
