@@ -1,14 +1,22 @@
 const express = require("express");
 const cors = require("cors");
 const { v4: uuidv4 } = require("uuid");
+const path = require("path");
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Serve static files from /public
+app.use(express.static("public"));
+
 // In-memory store for SOS sessions
-// NOTE: Data resets whenever the server restarts. Fine for MVP.
+// NOTE: This resets when the server restarts (fine for MVP).
 const sessions = new Map();
+
+// ===========================
+//   SOS API ROUTES
+// ===========================
 
 /**
  * POST /api/sos/start
@@ -106,21 +114,53 @@ app.post("/api/sos/end", (req, res) => {
   session.endedAt = (endedAt ? new Date(endedAt) : new Date()).toISOString();
   session.endReason = reason || "unknown";
 
-  console.log(`✅ SOS ended: ${sosId} (reason: ${session.endReason})`);
+  console.log(
+    `✅ SOS ended: ${sosId} (reason: ${session.endReason})`
+  );
 
   return res.json({ success: true });
 });
 
-// Debug endpoint: list all sessions (don't expose in public app later)
-app.get("/api/sos/debug/sessions", (req, res) => {
-  const all = Array.from(sessions.values());
-  return res.json(all);
+// ===========================
+//   LIVE JSON ENDPOINT
+// ===========================
+
+/**
+ * GET /api/live/:sosId
+ * Returns current snapshot of an SOS session
+ */
+app.get("/api/live/:sosId", (req, res) => {
+  const sosId = req.params.sosId;
+  const session = sessions.get(sosId);
+
+  if (!session) {
+    return res.status(404).json({ error: "SOS session not found" });
+  }
+
+  return res.json(session);
 });
 
+// ===========================
+//   LIVE DASHBOARD PAGE
+// ===========================
+
+/**
+ * GET /live/:sosId
+ * Serves the dashboard HTML (which then calls /api/live/:sosId)
+ */
+app.get("/live/:sosId", (req, res) => {
+  const filePath = path.join(__dirname, "public", "live.html");
+  res.sendFile(filePath);
+});
+
+// Root route
 app.get("/", (req, res) => {
-  res.send("GuardianSOS simple backend running");
+  res.send("GuardianSOS API running");
 });
 
+// ===========================
+//   START SERVER
+// ===========================
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🚀 GuardianSOS API running on port ${PORT}`);
