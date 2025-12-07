@@ -1,236 +1,416 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <title>GuardianSOS Live Tracking</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <style>
-        * { box-sizing: border-box; }
-        body {
-            margin: 0;
-            font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-            background: #050510;
-            color: #f5f5f5;
-        }
-        .header {
-            padding: 16px 20px;
-            border-bottom: 1px solid rgba(255,255,255,0.08);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .app-name {
-            font-weight: 700;
-            letter-spacing: 0.04em;
-            font-size: 14px;
-            text-transform: uppercase;
-            color: #ff4b6a;
-        }
-        .status-pill {
-            padding: 4px 10px;
-            border-radius: 999px;
-            font-size: 12px;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-        }
-        .status-dot {
-            width: 7px;
-            height: 7px;
-            border-radius: 50%;
-            background: #25d366;
-        }
-        .status-pill.active {
-            background: rgba(255, 75, 106, 0.12);
-            color: #ff97ac;
-        }
-        .status-pill.ended {
-            background: rgba(255, 255, 255, 0.08);
-            color: #cccccc;
-        }
-        .status-pill.active .status-dot {
-            background: #ff4b6a;
-        }
+  <meta charset="UTF-8" />
+  <title>GuardianSOS Live Tracking</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-        #map {
-            width: 100%;
-            height: 55vh;
-        }
+  <style>
+    * {
+      box-sizing: border-box;
+    }
 
-        .panel {
-            padding: 16px 20px 24px;
-        }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      background: radial-gradient(circle at top, #1a1b3a 0, #050510 55%, #020107 100%);
+      color: #f5f5f5;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
 
-        .label {
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: 0.06em;
-            opacity: 0.6;
-        }
+    .shell {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 16px 16px 32px;
+      width: 100%;
+    }
 
-        .value {
-            font-size: 15px;
-            margin-bottom: 10px;
-        }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+    }
 
-        .card {
-            background: rgba(255,255,255,0.04);
-            border-radius: 16px;
-            padding: 14px 16px;
-            margin-top: 12px;
-            border: 1px solid rgba(255,255,255,0.06);
-        }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
 
-        .row {
-            display: flex;
-            justify-content: space-between;
-            gap: 12px;
-        }
-        .row > div {
-            flex: 1;
-        }
+    .brand-logo {
+      width: 26px;
+      height: 26px;
+      border-radius: 999px;
+      background: radial-gradient(circle at 30% 30%, #ff9fb8 0, #ff4b6a 40%, #842441 100%);
+      box-shadow: 0 0 18px rgba(255, 75, 106, 0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 800;
+      color: #fff;
+    }
 
-        .footer-note {
-            margin-top: 18px;
-            font-size: 11px;
-            opacity: 0.55;
-            line-height: 1.5;
-        }
+    .brand-text {
+      display: flex;
+      flex-direction: column;
+    }
 
-        @media (min-width: 768px) {
-            #map { height: 60vh; }
-            .panel { max-width: 640px; margin: 0 auto; }
-        }
-    </style>
+    .brand-title {
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
 
-    <!-- REPLACE WITH YOUR REAL GOOGLE MAPS KEY -->
-    <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_KEY"></script>
+    .brand-sub {
+      font-size: 11px;
+      opacity: 0.6;
+    }
+
+    .status-pill {
+      padding: 5px 11px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      background: rgba(7, 7, 18, 0.85);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #25d366;
+      box-shadow: 0 0 8px rgba(37, 211, 102, 0.8);
+    }
+
+    .status-pill.active {
+      color: #ffb3c3;
+      border-color: rgba(255, 75, 106, 0.7);
+      background: radial-gradient(circle at top left, rgba(255, 75, 106, 0.18), rgba(12, 10, 25, 0.95));
+    }
+
+    .status-pill.active .status-dot {
+      background: #ff4b6a;
+      box-shadow: 0 0 12px rgba(255, 75, 106, 0.9);
+    }
+
+    .status-pill.ended {
+      color: #d4d4d4;
+      border-color: rgba(255, 255, 255, 0.2);
+      background: rgba(12, 10, 25, 0.92);
+    }
+
+    .main-card {
+      border-radius: 22px;
+      overflow: hidden;
+      background: linear-gradient(145deg, rgba(255, 255, 255, 0.06), rgba(0, 0, 0, 0.65));
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      box-shadow:
+        0 22px 60px rgba(0, 0, 0, 0.75),
+        0 0 0 1px rgba(255, 255, 255, 0.06);
+      backdrop-filter: blur(16px);
+    }
+
+    #map {
+      width: 100%;
+      height: 54vh;
+      min-height: 260px;
+    }
+
+    .panel {
+      padding: 16px 18px 18px;
+      background: radial-gradient(circle at top right, rgba(255, 75, 106, 0.12), rgba(5, 5, 16, 0.96));
+    }
+
+    .panel-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      margin-bottom: 10px;
+    }
+
+    .col {
+      flex: 1 1 130px;
+    }
+
+    .label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+      opacity: 0.7;
+      margin-bottom: 3px;
+    }
+
+    .value {
+      font-size: 15px;
+      font-weight: 500;
+      word-break: break-word;
+    }
+
+    .value-muted {
+      opacity: 0.75;
+      font-size: 13px;
+    }
+
+    .timeline {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px dashed rgba(255, 255, 255, 0.16);
+    }
+
+    .timeline-title {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      opacity: 0.75;
+      margin-bottom: 4px;
+    }
+
+    .timeline-item {
+      font-size: 12px;
+      opacity: 0.82;
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .timeline-item span:first-child {
+      opacity: 0.7;
+    }
+
+    .footer-note {
+      margin-top: 14px;
+      font-size: 11px;
+      opacity: 0.62;
+      line-height: 1.5;
+      max-width: 640px;
+    }
+
+    @media (min-width: 768px) {
+      #map {
+        height: 60vh;
+      }
+      .shell {
+        padding-top: 24px;
+      }
+    }
+  </style>
+
+  <!-- IMPORTANT: put YOUR Google Maps key here -->
+  <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_KEY"></script>
 </head>
-<body>
 
+<body>
+  <div class="shell">
     <div class="header">
-        <div class="app-name">GuardianSOS</div>
-        <div id="status-pill" class="status-pill ended">
-            <div class="status-dot"></div>
-            <span id="status-text">Loading...</span>
+      <div class="brand">
+        <div class="brand-logo">S</div>
+        <div class="brand-text">
+          <div class="brand-title">GuardianSOS</div>
+          <div class="brand-sub">Live Emergency View</div>
         </div>
+      </div>
+
+      <div id="status-pill" class="status-pill ended">
+        <div class="status-dot"></div>
+        <span id="status-pill-text">Loading...</span>
+      </div>
     </div>
 
-    <div id="map"></div>
+    <div class="main-card">
+      <div id="map"></div>
 
-    <div class="panel">
-        <div class="card">
+      <div class="panel">
+        <div class="panel-row">
+          <div class="col">
             <div class="label">Person</div>
             <div class="value" id="name">Loading...</div>
-
-            <div class="row">
-                <div>
-                    <div class="label">Last updated</div>
-                    <div class="value" id="updated">—</div>
-                </div>
-                <div>
-                    <div class="label">Status</div>
-                    <div class="value" id="status-label">—</div>
-                </div>
-            </div>
-
-            <div class="row">
-                <div>
-                    <div class="label">Latitude</div>
-                    <div class="value" id="lat">—</div>
-                </div>
-                <div>
-                    <div class="label">Longitude</div>
-                    <div class="value" id="lng">—</div>
-                </div>
-            </div>
+          </div>
+          <div class="col">
+            <div class="label">SOS status</div>
+            <div class="value value-muted" id="status-label">—</div>
+          </div>
         </div>
 
-        <div class="footer-note">
-            This page updates automatically every few seconds. If you believe
-            the person is in immediate danger, contact local emergency services
-            and share their last known location.
+        <div class="panel-row">
+          <div class="col">
+            <div class="label">Last updated</div>
+            <div class="value value-muted" id="updated">—</div>
+          </div>
+          <div class="col">
+            <div class="label">Coordinates</div>
+            <div class="value value-muted" id="coords">—</div>
+          </div>
         </div>
+
+        <div class="timeline">
+          <div class="timeline-title">Recent movements</div>
+          <div id="timeline-body" class="timeline-body value-muted">Waiting for location...</div>
+        </div>
+      </div>
     </div>
 
-    <script>
-        const sosId = window.location.pathname.split('/').pop();
+    <div class="footer-note">
+      This view automatically refreshes every few seconds while the SOS is active.
+      If you believe this person is in immediate danger, contact local emergency
+      services and share their last known location from this page.
+    </div>
+  </div>
 
-        let map, marker;
+  <script>
+    const sosId = window.location.pathname.split("/").pop();
 
-        function initMap() {
-            map = new google.maps.Map(document.getElementById("map"), {
-                zoom: 15,
-                center: { lat: 0, lng: 0 },
-                styles: [
-                    { "featureType": "poi", "stylers": [{ "visibility": "off" }] },
-                    { "featureType": "transit", "stylers": [{ "visibility": "off" }] }
-                ]
-            });
+    let map, marker;
 
-            marker = new google.maps.Marker({
-                map,
-                title: "Last known location"
-            });
+    function initMap() {
+      map = new google.maps.Map(document.getElementById("map"), {
+        zoom: 15,
+        center: { lat: 0, lng: 0 },
+        disableDefaultUI: true,
+        zoomControl: true,
+        styles: [
+          { "featureType": "poi", "stylers": [{ "visibility": "off" }] },
+          { "featureType": "transit", "stylers": [{ "visibility": "off" }] },
+          {
+            "elementType": "geometry",
+            "stylers": [{ "color": "#131522" }]
+          },
+          {
+            "elementType": "labels.text.fill",
+            "stylers": [{ "color": "#e0e0ff" }]
+          },
+          {
+            "elementType": "labels.text.stroke",
+            "stylers": [{ "color": "#050510" }]
+          },
+          {
+            "featureType": "road",
+            "elementType": "geometry",
+            "stylers": [{ "color": "#26273a" }]
+          }
+        ]
+      });
+
+      marker = new google.maps.Marker({
+        map,
+        title: "Last known location",
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 7,
+          fillColor: "#ff4b6a",
+          fillOpacity: 0.95,
+          strokeColor: "#ffffff",
+          strokeWeight: 2
         }
+      });
+    }
 
-        function setStatusPill(status) {
-            const pill = document.getElementById("status-pill");
-            const text = document.getElementById("status-text");
+    function setStatusPill(status) {
+      const pill = document.getElementById("status-pill");
+      const text = document.getElementById("status-pill-text");
 
-            if (status === "active") {
-                pill.classList.remove("ended");
-                pill.classList.add("active");
-                text.innerText = "SOS ACTIVE";
-            } else {
-                pill.classList.remove("active");
-                pill.classList.add("ended");
-                text.innerText = "SAFE / ENDED";
-            }
+      if (status === "active") {
+        pill.classList.remove("ended");
+        pill.classList.add("active");
+        text.innerText = "SOS ACTIVE";
+      } else {
+        pill.classList.remove("active");
+        pill.classList.add("ended");
+        text.innerText = "Safe / Ended";
+      }
+    }
+
+    function updateUI(session) {
+      document.title = `GuardianSOS — ${session.displayName || "Live tracking"}`;
+
+      document.getElementById("name").innerText =
+        session.displayName || "Unknown user";
+
+      const statusText = (session.status || "unknown").toUpperCase();
+      document.getElementById("status-label").innerText = statusText;
+
+      if (session.lastLocation) {
+        const dt = new Date(session.lastLocation.timestamp);
+        document.getElementById("updated").innerText = dt.toLocaleString();
+
+        const lat = session.lastLocation.latitude.toFixed(5);
+        const lng = session.lastLocation.longitude.toFixed(5);
+        document.getElementById("coords").innerText = `${lat}, ${lng}`;
+      } else {
+        document.getElementById("updated").innerText = "No location yet";
+        document.getElementById("coords").innerText = "—";
+      }
+
+      setStatusPill(session.status);
+
+      updateTimeline(session.locationHistory || []);
+    }
+
+    function updateTimeline(history) {
+      const container = document.getElementById("timeline-body");
+
+      if (!history.length) {
+        container.innerText = "No movement recorded yet.";
+        return;
+      }
+
+      const lastItems = history.slice(-3).reverse();
+      container.innerHTML = "";
+
+      lastItems.forEach((loc, index) => {
+        const wrapper = document.createElement("div");
+        wrapper.className = "timeline-item";
+
+        const t = new Date(loc.timestamp);
+        const label = index === 0 ? "Latest" : `-${index} update`;
+
+        const left = document.createElement("span");
+        left.innerText = label;
+
+        const right = document.createElement("span");
+        right.innerText = `${t.toLocaleTimeString()}  •  ${loc.latitude.toFixed(4)}, ${loc.longitude.toFixed(4)}`;
+
+        wrapper.appendChild(left);
+        wrapper.appendChild(right);
+        container.appendChild(wrapper);
+      });
+    }
+
+    function updateMap(loc) {
+      if (!loc) return;
+      const pos = { lat: loc.latitude, lng: loc.longitude };
+      marker.setPosition(pos);
+      map.setCenter(pos);
+    }
+
+    async function fetchStatus() {
+      try {
+        const res = await fetch(`/api/live/${sosId}`);
+        if (!res.ok) {
+          console.warn("Failed to load session", res.status);
+          return;
         }
+        const session = await res.json();
+        updateUI(session);
+        updateMap(session.lastLocation);
+      } catch (err) {
+        console.error("Error fetching status", err);
+      }
+    }
 
-        function updateUI(data) {
-            document.getElementById("name").innerText = data.displayName || "Unknown";
-            document.getElementById("status-label").innerText = (data.status || "").toUpperCase();
-
-            if (data.lastLocation) {
-                document.getElementById("updated").innerText = new Date(data.lastLocation.timestamp).toLocaleString();
-                document.getElementById("lat").innerText = data.lastLocation.latitude.toFixed(5);
-                document.getElementById("lng").innerText = data.lastLocation.longitude.toFixed(5);
-            } else {
-                document.getElementById("updated").innerText = "No location yet";
-                document.getElementById("lat").innerText = "—";
-                document.getElementById("lng").innerText = "—";
-            }
-
-            setStatusPill(data.status);
-        }
-
-        function updateMap(loc) {
-            if (!loc) return;
-            const pos = { lat: loc.latitude, lng: loc.longitude };
-            marker.setPosition(pos);
-            map.setCenter(pos);
-        }
-
-        async function fetchStatus() {
-            try {
-                const res = await fetch(`/api/live/${sosId}`);
-                if (!res.ok) {
-                    console.warn("Failed to load session", res.status);
-                    return;
-                }
-                const data = await res.json();
-                updateUI(data);
-                updateMap(data.lastLocation);
-            } catch (e) {
-                console.error("Error fetching status", e);
-            }
-        }
-
-        initMap();
-        fetchStatus();
-        setInterval(fetchStatus, 5000);
-    </script>
+    // Init
+    initMap();
+    fetchStatus();
+    setInterval(fetchStatus, 5000);
+  </script>
 </body>
 </html>
