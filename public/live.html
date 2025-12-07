@@ -267,7 +267,8 @@
   </div>
 
   <script>
-    const sosId = window.location.pathname.split("/").pop();
+    // Live token from URL: /live/:token
+    const shareToken = window.location.pathname.split("/").pop();
 
     let map, marker;
 
@@ -280,10 +281,7 @@
         styles: [
           { "featureType": "poi", "stylers": [{ "visibility": "off" }] },
           { "featureType": "transit", "stylers": [{ "visibility": "off" }] },
-          {
-            "elementType": "geometry",
-            "stylers": [{ "color": "#131522" }]
-          },
+          { "elementType": "geometry", "stylers": [{ "color": "#131522" }] },
           {
             "elementType": "labels.text.fill",
             "stylers": [{ "color": "#e0e0ff" }]
@@ -377,7 +375,8 @@
         left.innerText = label;
 
         const right = document.createElement("span");
-        right.innerText = `${t.toLocaleTimeString()}  •  ${loc.latitude.toFixed(4)}, ${loc.longitude.toFixed(4)}`;
+        right.innerText =
+          `${t.toLocaleTimeString()}  •  ${loc.latitude.toFixed(4)}, ${loc.longitude.toFixed(4)}`;
 
         wrapper.appendChild(left);
         wrapper.appendChild(right);
@@ -394,7 +393,7 @@
 
     async function fetchStatus() {
       try {
-        const res = await fetch(`/api/live/${sosId}`);
+        const res = await fetch(`/api/live/token/${shareToken}`);
         if (!res.ok) {
           console.warn("Failed to load session", res.status);
           return;
